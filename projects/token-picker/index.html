@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TokenPicker — Privacy-First API Token Inspector | Gourav Barnwal</title>
+    <meta name="description" content="Architecture, privacy model and security boundaries of TokenPicker, a Chrome Manifest V3 extension for inspecting API tokens in authorized browser sessions.">
+    <link rel="canonical" href="https://gouravbyte.github.io/projects/token-picker/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="TokenPicker — Privacy-First API Token Inspector">
+    <meta property="og:description" content="A local browser tool for authorized debugging, with explicit security boundaries.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/projects/token-picker/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareSourceCode",
+            "name": "TokenPicker",
+            "description": "A Chrome Manifest V3 extension for inspecting authentication tokens in authorized browser sessions.",
+            "url": "https://gouravbyte.github.io/projects/token-picker/",
+            "codeRepository": "https://github.com/gouravbyte/TokenPicker",
+            "programmingLanguage": "JavaScript",
+            "runtimePlatform": "Chrome Manifest V3",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"}
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Projects", "item": "https://gouravbyte.github.io/projects/"},
+              {"@type": "ListItem", "position": 3, "name": "TokenPicker", "item": "https://gouravbyte.github.io/projects/token-picker/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/" aria-current="page">Projects</a><a href="/writing/">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="https://github.com/gouravbyte/TokenPicker">View source <span aria-hidden="true">↗</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/projects/">Projects</a><span>/</span><span>TokenPicker</span></nav>
+        <header class="page-hero">
+          <p class="section-kicker">BROWSER SECURITY / DEVELOPER TOOL</p>
+          <h1>TokenPicker</h1>
+          <p class="page-deck">A Chrome extension for finding and copying authentication tokens during authorized API debugging—without sending them to a remote service.</p>
+          <div class="page-meta"><span>JavaScript</span><span>Chrome Manifest V3</span><span>Local processing</span><span>Open source</span></div>
+        </header>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="problem">Debugging without the DevTools hunt</h2>
+          <p>Authenticated API debugging often starts with the same repetitive path: open DevTools, find the right request, inspect headers, locate the active token, copy it carefully, and repeat after rotation. TokenPicker packages that workflow into a small extension popup.</p>
+          <p>The tool is for developers inspecting sessions and applications they are authorized to access. It does not bypass authentication, mint credentials or make a token safer to share.</p>
+          <div class="callout"><strong>Security boundary</strong><p>Use TokenPicker only on systems and sessions you own or are explicitly authorized to test. A copied bearer token is a credential and should be handled like a password.</p></div>
+
+          <h2 id="flow">How detection works</h2>
+          <figure><div class="diagram"><span>ACTIVE TAB</span><b></b><span>LOCAL DETECTION</span><b></b><span>MASKED POPUP</span></div><figcaption>Tokens stay inside browser extension storage until the user explicitly copies or clears them.</figcaption></figure>
+          <p>The background service worker tracks the active tab and supports three token sources:</p>
+          <ul>
+            <li><strong>Request headers:</strong> Bearer authorization, common session headers or a configured custom header.</li>
+            <li><strong>Browser storage:</strong> on-demand scanning of localStorage and sessionStorage for likely token keys.</li>
+            <li><strong>Cookies:</strong> on-demand matching of cookie names associated with the selected token type.</li>
+          </ul>
+          <p>Detected values are deduplicated by token, associated with the first observed URL and capped by a configurable one-to-five item limit. The popup displays only the first and last four characters until the user chooses to copy.</p>
+
+          <h2 id="privacy">Privacy choices in the implementation</h2>
+          <p>The current source contains no remote analytics or token-upload endpoint. Runtime token data is held in memory and mirrored to <code>chrome.storage.session</code> for the popup. Settings live separately in local extension storage.</p>
+          <ul>
+            <li>No token is copied automatically.</li>
+            <li>No detected value is included in the visible URL label.</li>
+            <li>Repeated values are stored once rather than once per request.</li>
+            <li>A clear action removes the working set.</li>
+            <li>Automatic cleanup can be enabled for browser close.</li>
+          </ul>
+          <p>These choices reduce exposure, but they do not eliminate it. Clipboard managers, screen sharing, browser extensions and local malware can all observe secrets after they are copied.</p>
+
+          <h2 id="permissions">Permission footprint</h2>
+          <p>To inspect headers, storage and cookies across an active site, the extension manifest requests broad capabilities including <code>webRequest</code>, <code>storage</code>, <code>cookies</code>, <code>scripting</code> and host access. That breadth deserves explicit scrutiny before installation.</p>
+          <table>
+            <thead><tr><th>Permission</th><th>Why it exists</th><th>Risk to manage</th></tr></thead>
+            <tbody>
+              <tr><td>webRequest</td><td>Observe outgoing requests for configured token headers</td><td>Request metadata can be sensitive</td></tr>
+              <tr><td>cookies</td><td>Run an explicit cookie scan</td><td>Cookies may represent active sessions</td></tr>
+              <tr><td>scripting</td><td>Inspect page-owned storage on demand</td><td>Injected code must remain narrowly scoped</td></tr>
+              <tr><td>storage</td><td>Persist settings and session results</td><td>Secrets should remain temporary</td></tr>
+            </tbody>
+          </table>
+          <p>A production release should narrow host access where possible, document exactly when each permission activates, add automated security tests and undergo an independent review before distribution.</p>
+
+          <h2 id="settings">Controls that make the tool predictable</h2>
+          <p>The settings page makes token type, source, item limit and cleanup behavior explicit. Changing the mode requires a page refresh for header observation, while storage and cookie scans are user-triggered. The popup also exposes a manual clear control behind a confirmation step.</p>
+          <p>That separation keeps a sensitive developer tool understandable: configuration defines what is eligible, a deliberate scan controls when broader inspection happens, and the popup makes deletion visible.</p>
+
+          <h2 id="source">Inspect before installing</h2>
+          <p>Because this project handles credentials, source review is part of installation. Read the <a href="https://github.com/gouravbyte/TokenPicker">TokenPicker repository</a>, inspect the manifest and background service worker, then load the unpacked extension only in a browser profile appropriate for development.</p>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#problem">Problem &amp; boundary</a></li><li><a href="#flow">Detection flow</a></li><li><a href="#privacy">Privacy choices</a></li><li><a href="#permissions">Permissions</a></li><li><a href="#settings">Controls</a></li><li><a href="#source">Source review</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Prefer a lower-risk browser workflow?</h2><p>The bookmark switcher automates environment changes without touching credentials.</p></div><a class="button" href="/projects/bookmark-environment-switcher/">View the project →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

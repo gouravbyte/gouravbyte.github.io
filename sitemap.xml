@@ -2,6 +2,54 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://gouravbyte.github.io/</loc>
-    <changefreq>monthly</changefreq>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/about/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/projects/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/projects/user-agent-analyzer/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/projects/token-picker/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/projects/kafka-throughput-lab/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/projects/bookmark-environment-switcher/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/writing/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/writing/kafka-consumer-groups-explained/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/writing/postgresql-cdc-debezium-kafka/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/writing/raft-consensus-five-nodes/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/writing/scalable-spring-boot-architecture/</loc>
+    <lastmod>2026-09-09</lastmod>
+  </url>
+  <url>
+    <loc>https://gouravbyte.github.io/writing/designing-high-throughput-backend-systems/</loc>
+    <lastmod>2026-09-09</lastmod>
   </url>
 </urlset>

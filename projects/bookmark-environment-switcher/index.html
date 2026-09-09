@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bookmark Environment Switcher — Chrome &amp; Edge Extension | Gourav Barnwal</title>
+    <meta name="description" content="How Gourav Barnwal's browser extension updates matching bookmark base URLs across development, staging and production environments.">
+    <link rel="canonical" href="https://gouravbyte.github.io/projects/bookmark-environment-switcher/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="Bookmark Environment Switcher — Chrome &amp; Edge Extension">
+    <meta property="og:description" content="A tiny developer tool that turns repetitive bookmark editing into one reversible operation.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/projects/bookmark-environment-switcher/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareSourceCode",
+            "name": "Bookmark Environment Switcher",
+            "description": "A Chrome and Edge extension for updating matching bookmark base URLs across environments.",
+            "url": "https://gouravbyte.github.io/projects/bookmark-environment-switcher/",
+            "codeRepository": "https://github.com/gouravbyte/BookmarkUrlExtension",
+            "programmingLanguage": "JavaScript",
+            "runtimePlatform": "Chrome and Microsoft Edge extension",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"}
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Projects", "item": "https://gouravbyte.github.io/projects/"},
+              {"@type": "ListItem", "position": 3, "name": "Bookmark Environment Switcher", "item": "https://gouravbyte.github.io/projects/bookmark-environment-switcher/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/" aria-current="page">Projects</a><a href="/writing/">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="https://github.com/gouravbyte/BookmarkUrlExtension">View source <span aria-hidden="true">↗</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/projects/">Projects</a><span>/</span><span>Bookmark Environment Switcher</span></nav>
+        <header class="page-hero">
+          <p class="section-kicker">BROWSER EXTENSION / DEVELOPER WORKFLOW</p>
+          <h1>Bookmark Environment Switcher</h1>
+          <p class="page-deck">A compact Chrome and Edge extension that replaces one bookmark base URL with another across an entire bookmark tree.</p>
+          <div class="page-meta"><span>JavaScript</span><span>Bookmarks API</span><span>Chrome + Edge</span><span>Local storage</span></div>
+        </header>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="friction">The friction behind the tool</h2>
+          <p>Developers often keep a folder of deep links into the same application: customer pages, internal tools, dashboards and object detail screens. Switching from production to a development or spoof environment means changing the host while preserving every path.</p>
+          <p>Doing that manually is slow and error-prone. The Bookmark Environment Switcher turns it into two inputs—source base URL and destination base URL—and one update action.</p>
+          <figure><div class="diagram"><span>BOOKMARK TREE</span><b></b><span>MATCH SOURCE HOST</span><b></b><span>REWRITE BASE URL</span></div><figcaption>Unrelated bookmarks remain unchanged because the update applies only when the existing URL contains the supplied source.</figcaption></figure>
+
+          <h2 id="implementation">How the implementation works</h2>
+          <p>The popup requests the full bookmark tree through the browser Bookmarks API, recursively flattens folders into URL-bearing nodes, and applies a string replacement to each match. Updates are written back by bookmark ID.</p>
+          <pre><code>const bookmarks = await getBookmarks();
+
+bookmarks.forEach(async (bookmark) =&gt; {
+  if (bookmark.url.includes(sourceBaseUrl)) {
+    const updatedUrl = bookmark.url.replace(sourceBaseUrl, targetBaseUrl);
+    await updateBookmark(bookmark.id, updatedUrl);
+  }
+});</code></pre>
+          <p>The last-used pair is stored in <code>chrome.storage.local</code>, so the popup can restore the developer's normal environment switch on the next use.</p>
+
+          <h2 id="reverse">A simple reverse path</h2>
+          <p>The Swap action exchanges the two input values. Running Update again then reverses the same base-URL transformation, provided the target still matches the bookmarks. That is intentionally simple and visible.</p>
+          <div class="callout"><strong>Operational lesson</strong><p>Automation that changes many items should make scope and reversal obvious before it optimizes for cleverness.</p></div>
+
+          <h2 id="edge-cases">Important edge cases</h2>
+          <p>The current implementation is a useful proof of concept, but bulk URL changes deserve defensive handling:</p>
+          <ul>
+            <li><strong>URL parsing:</strong> substring replacement can match text outside the origin; comparing parsed origins would be safer.</li>
+            <li><strong>Preview:</strong> showing the exact affected bookmark count and before/after samples would reduce surprises.</li>
+            <li><strong>Completion:</strong> awaiting all bookmark updates with <code>Promise.all</code> would make success and failure observable.</li>
+            <li><strong>Rollback:</strong> recording the changed bookmark IDs and original URLs would support a one-click undo independent of current input.</li>
+            <li><strong>Validation:</strong> normalizing trailing slashes would avoid malformed joins or missed matches.</li>
+          </ul>
+
+          <h2 id="permissions">Small permission surface</h2>
+          <p>The extension asks for bookmark access to read and update URLs, plus storage access for the last-used values. It does not need host permissions or page-content access. Keeping that permission surface narrow makes the utility easier to inspect and trust.</p>
+
+          <h2 id="source">Install from source</h2>
+          <p>The <a href="https://github.com/gouravbyte/BookmarkUrlExtension">repository includes source and setup screenshots</a>. Clone it, enable developer mode in Chrome or Edge, choose “Load unpacked,” and select the project directory. Review the affected bookmarks before using it with a large or valuable collection.</p>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#friction">The friction</a></li><li><a href="#implementation">Implementation</a></li><li><a href="#reverse">Reverse path</a></li><li><a href="#edge-cases">Edge cases</a></li><li><a href="#permissions">Permissions</a></li><li><a href="#source">Install</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Explore another focused JavaScript tool.</h2><p>TokenPicker applies the same small-tool mindset to authorized API debugging.</p></div><a class="button" href="/projects/token-picker/">View TokenPicker →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

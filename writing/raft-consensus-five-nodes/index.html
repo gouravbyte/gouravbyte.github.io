@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Raft Consensus Algorithm Explained with Five Nodes | Gourav Barnwal</title>
+    <meta name="description" content="Trace Raft leader election, log replication, quorum, split votes and recovery across a concrete five-node cluster.">
+    <link rel="canonical" href="https://gouravbyte.github.io/writing/raft-consensus-five-nodes/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="Raft Consensus Algorithm Explained with Five Nodes">
+    <meta property="og:description" content="Follow elections, replication and failures through one concrete five-node cluster.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/writing/raft-consensus-five-nodes/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Raft Consensus Algorithm Explained with Five Nodes",
+            "description": "A concrete walkthrough of Raft leader election, log replication, quorum and recovery.",
+            "url": "https://gouravbyte.github.io/writing/raft-consensus-five-nodes/",
+            "datePublished": "2026-09-09",
+            "dateModified": "2026-09-09",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"},
+            "about": ["Raft", "Consensus algorithms", "Distributed systems"],
+            "proficiencyLevel": "Intermediate"
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://gouravbyte.github.io/writing/"},
+              {"@type": "ListItem", "position": 3, "name": "Raft Consensus", "item": "https://gouravbyte.github.io/writing/raft-consensus-five-nodes/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/">Projects</a><a href="/writing/" aria-current="page">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="mailto:gourav.byte@gmail.com">Let's talk <span aria-hidden="true">→</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/writing/">Writing</a><span>/</span><span>Raft consensus</span></nav>
+        <article><header class="page-hero"><p class="section-kicker">DISTRIBUTED SYSTEMS / 12 MIN READ</p><h1>Raft consensus explained with five nodes</h1><p class="page-deck">Consensus becomes easier to reason about when every timeout, vote and log entry has a node attached. Here is one five-node cluster, followed through success and failure.</p><div class="page-meta"><span>By Gourav Barnwal</span><span>Published Sep 9, 2026</span><span>Intermediate</span></div></header></article>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="goal">What Raft is trying to preserve</h2>
+          <p>Five servers—A, B, C, D and E—maintain copies of one ordered log. Clients send commands that change a state machine. Raft's job is to make the healthy servers apply the same committed commands in the same order despite delay, restart and network partition.</p>
+          <div class="node-diagram"><div class="leader">A · LEADER</div><div>B · FOLLOWER</div><div>C · FOLLOWER</div><div>D · FOLLOWER</div><div>E · FOLLOWER</div></div>
+          <p>A five-node cluster needs a majority of three. It can therefore continue after two node failures, provided the remaining three can communicate. The majority rule is not a performance optimization; overlapping majorities are the bridge that prevents two conflicting histories from both becoming committed.</p>
+
+          <h2 id="terms">Roles and terms</h2>
+          <p>Each server is a follower, candidate or leader. Time is divided into monotonically increasing terms. A term usually starts with an election and has at most one leader accepted by a majority.</p>
+          <ul>
+            <li><strong>Follower:</strong> accepts leader replication and waits for heartbeats.</li>
+            <li><strong>Candidate:</strong> increments its term, votes for itself and requests votes after an election timeout.</li>
+            <li><strong>Leader:</strong> accepts client commands, appends them to its log and replicates them to followers.</li>
+          </ul>
+          <p>A server that sees a higher term updates its term and becomes a follower. Terms let the cluster recognize that older leadership information is stale.</p>
+
+          <h2 id="election">Leader election, step by step</h2>
+          <p>Assume all nodes begin as followers in term 7 and no leader is active.</p>
+          <ol>
+            <li>A's randomized election timeout expires first.</li>
+            <li>A advances to term 8, becomes a candidate, votes for itself and sends vote requests.</li>
+            <li>B and C have not voted in term 8 and consider A's log at least as up to date as their own, so they grant votes.</li>
+            <li>With votes from A, B and C, A has a majority and becomes leader for term 8.</li>
+            <li>A immediately sends heartbeats, causing D and E to learn the current term and leader.</li>
+          </ol>
+          <p>Randomized timeouts reduce the chance that several candidates begin together. If A and B split votes and nobody reaches three, the term ends without a leader; a later timeout starts a new term and another vote.</p>
+
+          <h2 id="replication">Replicating and committing one command</h2>
+          <p>A client asks the cluster to apply <code>set x = 42</code>. Leader A appends a new entry to its local log at index 12 in term 8, then sends AppendEntries requests containing the previous log index and term.</p>
+          <p>B and C verify that their logs match at the previous position, append index 12 and acknowledge. Once A knows that the term-8 entry exists on a majority—A, B and C—it advances its commit index. A applies the command to its state machine and returns success. Later heartbeats tell followers the new commit index so they apply it too.</p>
+          <blockquote><p>Replication means copies exist. Commitment means a quorum and the Raft rules make the entry safe to apply.</p></blockquote>
+
+          <h2 id="failure">The leader becomes isolated</h2>
+          <p>Now A is separated from B, C, D and E. It may still believe it is leader, but it cannot replicate a new entry to a majority and therefore cannot commit new work.</p>
+          <p>Among the connected four nodes, D times out, starts term 9 and wins votes from D, B and C. D becomes leader. If a client reaches D, the group can continue. When the network heals, A sees term 9, steps down and accepts D's authority.</p>
+          <p>Any uncommitted suffix created only on isolated A may be overwritten to match D's log. A client must not receive a success response for such an entry, because A never proved majority replication.</p>
+
+          <h2 id="log-repair">How inconsistent logs converge</h2>
+          <p>The leader tracks a next index for each follower. If a follower rejects AppendEntries because the previous index or term does not match, the leader backs up to find a common prefix. It then sends the missing suffix. Conflicting uncommitted entries on the follower are removed.</p>
+          <p>The vote rule also checks log freshness. A candidate whose last log term is older—or whose term matches but last index is shorter—cannot win a vote from a more up-to-date server. This blocks a server missing committed history from becoming leader through timing alone.</p>
+
+          <h2 id="safety">The safety rules worth remembering</h2>
+          <ul>
+            <li>A server votes for at most one candidate in a term.</li>
+            <li>A leader never overwrites its own log; it appends new entries.</li>
+            <li>Matching index and term imply matching preceding history.</li>
+            <li>A committed entry remains present in future leaders.</li>
+            <li>State machines apply only committed entries and apply them in log order.</li>
+          </ul>
+          <p>Raft separates safety from availability. A minority partition may stop serving writes even when its machines are healthy. That is the correct result when the alternative is two accepted histories.</p>
+
+          <h2 id="production">What the algorithm does not solve for you</h2>
+          <p>A production Raft-backed system still needs durable storage, snapshots, log compaction, membership changes, client retry semantics, read-consistency choices, backpressure and observability. It also needs realistic failure testing: delayed messages, disk stalls and clock-related timeout behavior are often more revealing than simply killing a process.</p>
+          <p>The most useful operational signals include current term, leader changes, election duration, replication lag per follower, commit-index movement, snapshot progress and request latency separated by leader and follower paths.</p>
+          <div class="author-box"><img src="/assets/avatar.jpg" alt="Gourav Barnwal" width="68" height="68"><div><strong>Gourav Barnwal</strong><p>Senior Backend Engineer writing about distributed systems and production reliability.</p></div></div>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#goal">The goal</a></li><li><a href="#terms">Roles &amp; terms</a></li><li><a href="#election">Election</a></li><li><a href="#replication">Replication</a></li><li><a href="#failure">Leader failure</a></li><li><a href="#log-repair">Log repair</a></li><li><a href="#safety">Safety</a></li><li><a href="#production">Production gaps</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Bring failure-aware thinking into application design.</h2><p>Spring Boot services need boundaries and recovery paths even without consensus.</p></div><a class="button" href="/writing/scalable-spring-boot-architecture/">Spring Boot architecture →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

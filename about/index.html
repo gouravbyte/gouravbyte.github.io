@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>About Gourav Barnwal | Senior Backend Engineer</title>
+    <meta name="description" content="Meet Gourav Barnwal, a Senior Backend Engineer building Java, Spring Boot, Kafka and PostgreSQL systems across fintech, lending and HR technology.">
+    <link rel="canonical" href="https://gouravbyte.github.io/about/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="About Gourav Barnwal | Senior Backend Engineer">
+    <meta property="og:description" content="Backend engineering across fintech, lending and HR technology—with an emphasis on reliability, observability and measurable outcomes.">
+    <meta property="og:type" content="profile">
+    <meta property="og:url" content="https://gouravbyte.github.io/about/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "ProfilePage",
+        "@id": "https://gouravbyte.github.io/about/#profile",
+        "url": "https://gouravbyte.github.io/about/",
+        "name": "About Gourav Barnwal",
+        "dateModified": "2026-09-09",
+        "mainEntity": {
+          "@type": "Person",
+          "@id": "https://gouravbyte.github.io/#gourav-barnwal",
+          "name": "Gourav Barnwal",
+          "alternateName": "gouravbyte",
+          "url": "https://gouravbyte.github.io/",
+          "image": "https://gouravbyte.github.io/assets/avatar.jpg",
+          "jobTitle": "Senior Software Engineer",
+          "sameAs": [
+            "https://github.com/gouravbyte",
+            "https://www.linkedin.com/in/gouravbyte/"
+          ],
+          "alumniOf": {
+            "@type": "CollegeOrUniversity",
+            "name": "Indian Institute of Technology Bhubaneswar"
+          },
+          "knowsAbout": ["Java", "Spring Boot", "Apache Kafka", "PostgreSQL", "Distributed Systems", "Backend Engineering", "AWS"]
+        }
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="/#experience">Experience</a><a href="/about/" aria-current="page">About</a></nav>
+      <a class="header-contact" href="mailto:gourav.byte@gmail.com">Let's talk <span aria-hidden="true">→</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><span>About</span></nav>
+        <header class="page-hero">
+          <p class="section-kicker">ABOUT / GOURAV BARNWAL</p>
+          <h1>Senior backend engineer, systems thinker, practical builder.</h1>
+          <p class="page-deck">I build reliable backend platforms for fintech, lending and HR technology, with most of my work living where business-critical workflows meet distributed systems.</p>
+          <div class="page-meta"><span>Bangalore, India</span><span>Java · Spring Boot · Kafka</span><span>6 years across backend systems</span></div>
+        </header>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="approach">Engineering at the failure boundary</h2>
+          <p>My favorite engineering problems are rarely isolated algorithms. They are systems whose behavior changes under concurrency, partial failure, retries, uneven traffic or imperfect data. The useful question is not only “does it work?” but “what happens when one dependency is slow, an event is delivered twice, or a batch stops halfway through?”</p>
+          <p>That lens shapes how I design Java and Spring Boot services: make state transitions explicit, keep interfaces small, measure the critical path, and give operators enough context to understand a failure without reconstructing it from fragments.</p>
+          <blockquote><p>Reliable software is software whose failure behavior was designed—not discovered in production.</p></blockquote>
+
+          <h2 id="experience">Production experience</h2>
+          <p>I currently work at <strong>Credila</strong> on lending platforms, event-driven workflows and data reliability. Before that, I worked at <strong>Zenefits</strong> on benefits and insurance integrations, and at <strong>MoneyTap</strong> on digital-credit backend systems.</p>
+          <p>The work has included PostgreSQL change-data-capture pipelines with Debezium and Kafka, reusable auditing, JWT authentication, caching, rate limiting, EDI integrations and performance improvements across data and API layers.</p>
+          <div class="project-facts">
+            <div><span>Batch processing</span><strong>60K loans / 5 min</strong></div>
+            <div><span>Workflow improvement</span><strong>72 hours → 3 hours</strong></div>
+            <div><span>Measured impact</span><strong>₹12M+</strong></div>
+          </div>
+          <p>These numbers are useful because they anchor engineering decisions in outcomes. The deeper lesson is that large gains usually come from changing the shape of the work—batching, concurrency, data access and process design—not from tuning one method in isolation.</p>
+
+          <h2 id="decisions">How I make technical decisions</h2>
+          <ul>
+            <li><strong>Start with invariants.</strong> Identify what must remain true through retries, duplicate messages and partial completion.</li>
+            <li><strong>Prefer explicit boundaries.</strong> A small, observable contract is easier to operate than a clever abstraction spanning several services.</li>
+            <li><strong>Measure before tuning.</strong> Latency percentiles, queue depth, database plans and consumer lag are more useful than intuition alone.</li>
+            <li><strong>Design the recovery path.</strong> Dead-letter handling, idempotency and safe replay belong in the first design, not the incident follow-up.</li>
+            <li><strong>Leave the system easier to understand.</strong> The best fix often becomes a reusable platform component, runbook or test.</li>
+          </ul>
+
+          <h2 id="stack">Technology, chosen by constraint</h2>
+          <p>My core stack is <strong>Java, Spring Boot, Kafka and PostgreSQL</strong>. Around it I work with Redis, Elasticsearch, MongoDB, RabbitMQ, SQS, Debezium, Kafka Connect, Docker and AWS services such as S3, Glue and Athena. I also use Python and Django when they fit the delivery problem better.</p>
+          <p>The tool is not the architecture. I choose technology around data ownership, delivery guarantees, failure isolation, operational cost and the skill set of the team that will support it.</p>
+
+          <h2 id="education">Education and public work</h2>
+          <p>I earned a Bachelor of Technology from the <strong>Indian Institute of Technology Bhubaneswar</strong> between 2016 and 2020. Outside production work, I publish focused experiments and developer tools on GitHub—from a dependency-free Java user-agent parser to Kafka producer examples and browser workflow extensions.</p>
+          <p>See the <a href="/projects/">project case studies</a>, browse my <a href="/writing/">backend engineering notes</a>, or review the source directly on <a href="https://github.com/gouravbyte" rel="me">GitHub</a>.</p>
+        </article>
+        <aside class="toc" aria-label="On this page">
+          <span>On this page</span>
+          <ol><li><a href="#approach">Engineering approach</a></li><li><a href="#experience">Production experience</a></li><li><a href="#decisions">Technical decisions</a></li><li><a href="#stack">Technology</a></li><li><a href="#education">Education &amp; public work</a></li></ol>
+        </aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Have a backend problem worth untangling?</h2><p>I'm always interested in systems where correctness, scale and business impact meet.</p></div><a class="button" href="mailto:gourav.byte@gmail.com">Write to me →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

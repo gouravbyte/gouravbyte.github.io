@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Designing High-Throughput Backend Systems | Gourav Barnwal</title>
+    <meta name="description" content="A measurement-first guide to high-throughput backend design: budgets, batching, concurrency, backpressure, idempotency, databases and load testing.">
+    <link rel="canonical" href="https://gouravbyte.github.io/writing/designing-high-throughput-backend-systems/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="Designing High-Throughput Backend Systems">
+    <meta property="og:description" content="A measurement-first playbook for batching, concurrency, backpressure, databases and safe retries.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/writing/designing-high-throughput-backend-systems/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Designing High-Throughput Backend Systems",
+            "description": "A measurement-first guide to batching, concurrency, backpressure, idempotency and database throughput.",
+            "url": "https://gouravbyte.github.io/writing/designing-high-throughput-backend-systems/",
+            "datePublished": "2026-09-09",
+            "dateModified": "2026-09-09",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"},
+            "about": ["Backend engineering", "Performance", "Scalability", "Java"],
+            "proficiencyLevel": "Intermediate"
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://gouravbyte.github.io/writing/"},
+              {"@type": "ListItem", "position": 3, "name": "High-Throughput Backend Systems", "item": "https://gouravbyte.github.io/writing/designing-high-throughput-backend-systems/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/">Projects</a><a href="/writing/" aria-current="page">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="mailto:gourav.byte@gmail.com">Let's talk <span aria-hidden="true">→</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/writing/">Writing</a><span>/</span><span>High-throughput systems</span></nav>
+        <article><header class="page-hero"><p class="section-kicker">PERFORMANCE ENGINEERING / 14 MIN READ</p><h1>Designing high-throughput backend systems</h1><p class="page-deck">The fastest path is rarely “add threads.” Start with a work budget, find the constrained stage, and make overload behavior part of the design.</p><div class="page-meta"><span>By Gourav Barnwal</span><span>Published Sep 9, 2026</span><span>Intermediate</span></div></header></article>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="target">Turn the goal into a budget</h2>
+          <p>“Process 60,000 records in five minutes” is a useful start because it implies an average completion rate of 200 records per second. It is not yet a design. We still need record size, work per record, acceptable failure rate, ordering constraints, burst shape and durability requirements.</p>
+          <p>Write the target as a budget:</p>
+          <ul>
+            <li>60,000 input records must reach a terminal state within 300 seconds.</li>
+            <li>At least 99.9% should complete automatically; failures must remain replayable.</li>
+            <li>No entity may receive the same non-idempotent side effect twice.</li>
+            <li>The database must stay within agreed CPU, I/O and connection limits.</li>
+            <li>Progress and failure causes must be visible while the batch is running.</li>
+          </ul>
+          <p>The average rate is the floor. Capacity must include startup, skew, retries and the slowest realistic dependency period.</p>
+
+          <h2 id="pipeline">Model the work as stages</h2>
+          <figure><div class="diagram"><span>READ</span><b></b><span>TRANSFORM</span><b></b><span>WRITE / EMIT</span></div><figcaption>Each stage has a service time, concurrency limit and queue. Throughput is capped by the constrained stage.</figcaption></figure>
+          <p>Measure stages separately. If reading 60,000 rows takes 12 seconds, transformation 30 seconds and downstream writes 420 seconds, tuning the reader cannot meet the five-minute target. The write stage controls the system.</p>
+          <p>Queues between stages absorb short variance but also hide saturation. Bound every queue and record its age. An unbounded executor is not capacity; it is deferred failure plus memory pressure.</p>
+
+          <h2 id="batching">Batch where fixed cost dominates</h2>
+          <p>Batching amortizes network round trips, transaction setup, serialization framing and protocol overhead. It helps when the fixed cost per request is meaningful compared with the work per item.</p>
+          <p>Large batches are not always better. They consume memory, hold locks longer, increase retry scope and produce uneven latency. Find the knee of the curve by testing several sizes against throughput and p99 completion time.</p>
+          <div class="callout"><strong>Batch invariant</strong><p>A failed batch must have a defined retry unit. If the whole batch repeats, every per-record effect must be idempotent.</p></div>
+
+          <h2 id="concurrency">Add bounded concurrency</h2>
+          <p>Concurrency overlaps waiting. It improves throughput when workers spend time on I/O and dependencies have unused capacity. It makes performance worse when workers compete for the same saturated connection pool, lock or CPU.</p>
+          <p>A practical worker count starts from measured service time and target rate, then is capped by downstream limits. If each remote call averages 100 ms and the target is 200 calls per second, roughly 20 calls must be in flight before overhead and headroom. If the downstream permits only 12 concurrent requests, the target is impossible without batching, a faster endpoint or changed requirements.</p>
+          <p>Use separate bounded executors for workloads with different behavior. A slow report export should not occupy the same pool that serves short interactive requests.</p>
+
+          <h2 id="backpressure">Backpressure protects useful work</h2>
+          <p>When input exceeds sustainable completion, the system must slow admission, buffer within a known limit or reject work clearly. Continuing to accept everything turns a temporary spike into rising latency, timeouts, retries and a wider failure.</p>
+          <ul>
+            <li>Pause or slow queue consumers when database saturation crosses a threshold.</li>
+            <li>Use broker lag as a buffer only when retention and recovery time are acceptable.</li>
+            <li>Return a clear overload response before every thread and connection is exhausted.</li>
+            <li>Add jitter to retries so recovering dependencies do not receive synchronized bursts.</li>
+            <li>Prioritize interactive or deadline-bound work over best-effort bulk work.</li>
+          </ul>
+
+          <h2 id="idempotency">Make retries a normal path</h2>
+          <p>Distributed work can fail after the effect succeeds but before the caller receives confirmation. Retrying is necessary; duplication is therefore a design case, not an anomaly.</p>
+          <p>Assign each logical command an idempotency key. Store the key and result with the business transaction, protect it with a uniqueness constraint, and return the existing outcome on replay. For event consumers, the event ID and handler name can form the deduplication key.</p>
+          <p>A retry policy should classify errors. Validation failures and violated business rules will not improve with time. Timeouts, temporary unavailability and selected conflicts may. Bound attempts, use exponential delay with jitter and route exhaustion to a visible recovery queue.</p>
+
+          <h2 id="database">Protect the database</h2>
+          <p>The database is frequently the shared constraint. Performance work should include query plans, index selectivity, lock duration, connection usage, WAL volume and storage latency.</p>
+          <table>
+            <thead><tr><th>Technique</th><th>Benefit</th><th>Failure mode to watch</th></tr></thead>
+            <tbody>
+              <tr><td>Bulk insert/update</td><td>Fewer round trips</td><td>Large transactions and lock duration</td></tr>
+              <tr><td>Keyset pagination</td><td>Stable work chunks</td><td>Incorrect ordering or missing tie-breaker</td></tr>
+              <tr><td>Covering index</td><td>Less heap access</td><td>Write amplification and storage growth</td></tr>
+              <tr><td>More connections</td><td>More concurrent I/O to a point</td><td>Contention, context switching and overload</td></tr>
+              <tr><td>Read replica</td><td>Separates eligible reads</td><td>Replication lag and stale decisions</td></tr>
+            </tbody>
+          </table>
+          <p>Use an explicit claim pattern when several workers pull rows from one table. The claim must prevent two workers from owning the same row while allowing abandoned work to become eligible again after a lease or state transition.</p>
+
+          <h2 id="observe">Measure end-to-end completion</h2>
+          <p>Track accepted, started, completed, retried and failed records. Measure queue age and end-to-end completion latency, not only the duration of one method. Separate percentiles by outcome and dependency.</p>
+          <p>At minimum, graph:</p>
+          <ul>
+            <li>records and bytes completed per second;</li>
+            <li>p50, p95 and p99 completion latency;</li>
+            <li>active workers, queue size and oldest-item age;</li>
+            <li>database pool use, query latency and lock waits;</li>
+            <li>downstream rate-limit responses, timeouts and retry attempts;</li>
+            <li>permanent failure count and replay age.</li>
+          </ul>
+
+          <h2 id="test">Prove the design under realistic load</h2>
+          <ol>
+            <li>Generate representative record sizes and key distributions.</li>
+            <li>Warm the runtime and dependency caches before measurement.</li>
+            <li>Increase rate gradually to find the first saturation signal.</li>
+            <li>Hold the target long enough to expose leaks, queue growth and compaction effects.</li>
+            <li>Inject dependency latency, process restarts and partial failure.</li>
+            <li>Replay failed work and prove the final business counts reconcile.</li>
+          </ol>
+          <p>Report configuration and environment with every result. Throughput without CPU, memory, storage, payload, durability and dependency settings is a number that cannot guide another design.</p>
+
+          <h2 id="sequence">A reliable optimization sequence</h2>
+          <p>Define the target, instrument the current path, identify the constrained stage, reduce unnecessary work, batch fixed costs, add bounded concurrency, introduce backpressure, make retries safe, and test failure. Repeat from measurements.</p>
+          <blockquote><p>High throughput is sustained completed work—not accepted requests, queued futures or optimistic log lines.</p></blockquote>
+          <p>For an inspectable producer starting point, see the <a href="/projects/kafka-throughput-lab/">Kafka Throughput Lab</a>. For application boundaries around these techniques, read <a href="/writing/scalable-spring-boot-architecture/">a scalable Spring Boot architecture</a>.</p>
+          <div class="author-box"><img src="/assets/avatar.jpg" alt="Gourav Barnwal" width="68" height="68"><div><strong>Gourav Barnwal</strong><p>Senior Backend Engineer focused on performance, distributed systems and reliable data workflows.</p></div></div>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#target">Work budget</a></li><li><a href="#pipeline">Pipeline stages</a></li><li><a href="#batching">Batching</a></li><li><a href="#concurrency">Concurrency</a></li><li><a href="#backpressure">Backpressure</a></li><li><a href="#idempotency">Idempotency</a></li><li><a href="#database">Database</a></li><li><a href="#observe">Measurement</a></li><li><a href="#test">Load testing</a></li><li><a href="#sequence">Sequence</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Apply the same model to event consumers.</h2><p>Partitions are bounded work queues with ownership and recovery rules.</p></div><a class="button" href="/writing/kafka-consumer-groups-explained/">Kafka consumer groups →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

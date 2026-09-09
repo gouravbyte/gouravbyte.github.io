@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PostgreSQL CDC Using Debezium and Kafka | Gourav Barnwal</title>
+    <meta name="description" content="A practical PostgreSQL CDC architecture with Debezium and Kafka: WAL, snapshots, offsets, ordering, schema changes, outbox design and operations.">
+    <link rel="canonical" href="https://gouravbyte.github.io/writing/postgresql-cdc-debezium-kafka/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="PostgreSQL CDC Using Debezium and Kafka">
+    <meta property="og:description" content="Turn PostgreSQL row changes into reliable events without hiding snapshots, schema evolution or recovery.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/writing/postgresql-cdc-debezium-kafka/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "PostgreSQL CDC Using Debezium and Kafka",
+            "description": "A practical architecture for PostgreSQL change data capture with Debezium and Kafka.",
+            "url": "https://gouravbyte.github.io/writing/postgresql-cdc-debezium-kafka/",
+            "datePublished": "2026-09-09",
+            "dateModified": "2026-09-09",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"},
+            "about": ["PostgreSQL", "Debezium", "Apache Kafka", "Change data capture"],
+            "proficiencyLevel": "Intermediate"
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://gouravbyte.github.io/writing/"},
+              {"@type": "ListItem", "position": 3, "name": "PostgreSQL CDC", "item": "https://gouravbyte.github.io/writing/postgresql-cdc-debezium-kafka/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/">Projects</a><a href="/writing/" aria-current="page">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="mailto:gourav.byte@gmail.com">Let's talk <span aria-hidden="true">→</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/writing/">Writing</a><span>/</span><span>PostgreSQL CDC</span></nav>
+        <article>
+          <header class="page-hero">
+            <p class="section-kicker">POSTGRESQL / DEBEZIUM / KAFKA · 13 MIN READ</p>
+            <h1>PostgreSQL CDC using Debezium and Kafka</h1>
+            <p class="page-deck">Change data capture is not “poll the table faster.” It is a durable progress pipeline from the database write-ahead log to consumers that must tolerate replay.</p>
+            <div class="page-meta"><span>By Gourav Barnwal</span><span>Published Sep 9, 2026</span><span>Intermediate</span></div>
+          </header>
+        </article>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="architecture">The data path</h2>
+          <p>PostgreSQL records durable database changes in its write-ahead log, or WAL. Logical decoding turns that log into a stream of row-level changes. A Debezium PostgreSQL connector reads the logical replication stream, converts changes into structured records and writes them to Kafka topics.</p>
+          <figure><div class="diagram"><span>POSTGRESQL WAL</span><b></b><span>DEBEZIUM CONNECTOR</span><b></b><span>KAFKA TOPICS</span></div><figcaption>Consumers read Kafka; they do not poll the source tables or compete with application queries.</figcaption></figure>
+          <p>The connector also stores progress. PostgreSQL tracks a replication slot so WAL needed by the connector is retained, while Kafka Connect stores connector offsets so a restarted task can resume from a known log position.</p>
+
+          <h2 id="event">What a change event represents</h2>
+          <p>A Debezium envelope normally includes the row state before and after a change, an operation code, source metadata and a timestamp. Inserts, updates and deletes remain distinguishable; a tombstone may follow a delete depending on configuration and compaction behavior.</p>
+          <p>That envelope is infrastructure truth, not automatically a stable business contract. A database column rename, internal status code or table split can leak implementation changes to every downstream consumer.</p>
+          <div class="callout"><strong>Contract decision</strong><p>Use raw CDC when consumers intentionally mirror database state. Use a transformation or transactional outbox when consumers need a durable business event such as <code>LoanApproved</code>.</p></div>
+
+          <h2 id="snapshot">The initial snapshot boundary</h2>
+          <p>Before streaming ongoing changes, a new connector may snapshot existing rows. The difficult part is not reading rows; it is establishing a consistent boundary so no change is lost between the snapshot and the log stream.</p>
+          <p>Plan the snapshot as an operational event:</p>
+          <ul>
+            <li>Estimate table scan time and load on the primary database.</li>
+            <li>Decide whether consumers can distinguish snapshot rows from live changes.</li>
+            <li>Verify that the replication slot and WAL retention can survive the snapshot duration.</li>
+            <li>Record row counts and source positions so completeness can be reconciled.</li>
+            <li>Test restart behavior during the snapshot, not only after it.</li>
+          </ul>
+
+          <h2 id="ordering">Ordering and transactions</h2>
+          <p>PostgreSQL commits a transaction atomically, but Kafka consumers often observe table topics independently. Ordering is preserved only within a Kafka partition, and the record key determines partition placement.</p>
+          <p>For one table keyed by entity ID, changes to the same entity can remain ordered in one partition. Cross-table business invariants are harder. If a transaction updates an application row and an audit row, two topic consumers must not assume globally synchronized arrival.</p>
+          <p>When a business event must describe the transaction as one intentional unit, an outbox row written in the same database transaction gives Debezium one well-defined record to publish.</p>
+
+          <h2 id="schema">Schema evolution without surprise</h2>
+          <p>CDC makes database schema a distributed dependency. Before a migration, identify which fields downstream systems actually consume and how the serialization layer represents defaults, nullability and type changes.</p>
+          <table>
+            <thead><tr><th>Change</th><th>Risk</th><th>Safer rollout</th></tr></thead>
+            <tbody>
+              <tr><td>Add nullable column</td><td>Older consumers may ignore it safely</td><td>Add, deploy tolerant readers, then start using it</td></tr>
+              <tr><td>Rename column</td><td>Appears as remove plus add</td><td>Dual-publish or transform during a compatibility window</td></tr>
+              <tr><td>Change type</td><td>Deserializer or semantic break</td><td>Introduce a new field or topic contract</td></tr>
+              <tr><td>Drop table/column</td><td>Permanent consumer break</td><td>Prove no active reader depends on it before removal</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="failure">Recovery and replay</h2>
+          <p>Debezium and Kafka are designed around resumable progress, which means duplicates must be expected around failures. A connector can publish a record and fail before its offset is durably acknowledged. A consumer can commit a business transaction and fail before committing its Kafka offset.</p>
+          <p>Consumers should therefore use stable source identifiers—such as topic, partition and offset or a business event ID—to make effects idempotent. Rebuild workflows should define where replay starts, which sinks must be cleared or versioned, and how completion is reconciled.</p>
+
+          <h2 id="operations">What to monitor</h2>
+          <ul>
+            <li><strong>Replication slot lag and retained WAL bytes:</strong> a stalled connector can exhaust database storage.</li>
+            <li><strong>Connector/task state:</strong> failed and paused tasks require different responses.</li>
+            <li><strong>Source-to-Kafka delay:</strong> distinguish database inactivity from capture latency.</li>
+            <li><strong>Kafka producer errors and topic growth:</strong> the connector is also a Kafka producer.</li>
+            <li><strong>Consumer lag and dead-letter volume:</strong> publication is not end-to-end completion.</li>
+            <li><strong>Schema history health:</strong> recovery depends on reconstructing the schema at each log position.</li>
+          </ul>
+          <p>Give the connector a database role with only the required replication and table privileges, protect Kafka credentials, encrypt network paths and treat change events as production data. CDC often contains every sensitive field in the captured table.</p>
+
+          <h2 id="choice">When CDC is the right tool</h2>
+          <p>Use CDC when several systems need timely database changes, a search or analytics projection must stay synchronized, or adding application-level publishing to every write path is impractical. Avoid it when a small scheduled export is sufficient, when row-level data must not leave the database, or when the only valid contract is a carefully curated domain event.</p>
+          <p>The reliable design is less about installing a connector and more about owning progress, compatibility and replay across the whole path. For the consumer side of that path, continue with <a href="/writing/kafka-consumer-groups-explained/">Kafka consumer groups and idempotent processing</a>.</p>
+          <div class="author-box"><img src="/assets/avatar.jpg" alt="Gourav Barnwal" width="68" height="68"><div><strong>Gourav Barnwal</strong><p>Senior Backend Engineer working with event-driven systems, data reliability and PostgreSQL.</p></div></div>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#architecture">Data path</a></li><li><a href="#event">Change events</a></li><li><a href="#snapshot">Snapshots</a></li><li><a href="#ordering">Ordering</a></li><li><a href="#schema">Schema evolution</a></li><li><a href="#failure">Recovery</a></li><li><a href="#operations">Operations</a></li><li><a href="#choice">When to use CDC</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Make the consumer side replay-safe.</h2><p>Offsets and database log positions are only useful when handlers tolerate duplicates.</p></div><a class="button" href="/writing/kafka-consumer-groups-explained/">Consumer groups →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

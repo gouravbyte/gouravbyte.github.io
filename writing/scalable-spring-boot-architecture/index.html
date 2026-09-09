@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>A Scalable Spring Boot Architecture | Gourav Barnwal</title>
+    <meta name="description" content="A practical Spring Boot architecture for scalable backend systems: domain boundaries, transactions, asynchronous work, observability, tests and deployment.">
+    <link rel="canonical" href="https://gouravbyte.github.io/writing/scalable-spring-boot-architecture/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="A Scalable Spring Boot Architecture">
+    <meta property="og:description" content="Boundaries, transactions, async work and observability—without starting with premature microservices.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/writing/scalable-spring-boot-architecture/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "A Scalable Spring Boot Architecture",
+            "description": "A practical architecture for scalable Spring Boot backend systems.",
+            "url": "https://gouravbyte.github.io/writing/scalable-spring-boot-architecture/",
+            "datePublished": "2026-09-09",
+            "dateModified": "2026-09-09",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"},
+            "about": ["Spring Boot", "Java", "Backend architecture"],
+            "proficiencyLevel": "Intermediate"
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://gouravbyte.github.io/writing/"},
+              {"@type": "ListItem", "position": 3, "name": "Scalable Spring Boot Architecture", "item": "https://gouravbyte.github.io/writing/scalable-spring-boot-architecture/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/">Projects</a><a href="/writing/" aria-current="page">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="mailto:gourav.byte@gmail.com">Let's talk <span aria-hidden="true">→</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/writing/">Writing</a><span>/</span><span>Spring Boot architecture</span></nav>
+        <article><header class="page-hero"><p class="section-kicker">JAVA / SPRING BOOT · 12 MIN READ</p><h1>A scalable Spring Boot architecture</h1><p class="page-deck">Scale starts with explicit boundaries and measurable work. A service split is a deployment decision that should come later, when the evidence can pay for its coordination cost.</p><div class="page-meta"><span>By Gourav Barnwal</span><span>Published Sep 9, 2026</span><span>Intermediate</span></div></header></article>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="shape">Start with a modular application</h2>
+          <p>For a new business system, a well-structured Spring Boot application is often the best starting point. It keeps one deployment and one debugging surface while allowing the code to express real domain boundaries.</p>
+          <p>Organize by capability rather than framework layer. A package such as <code>loan.application</code> should expose use cases, contain domain rules and depend on interfaces for persistence or messaging. It should not reach into another capability's repository because both happen to run in one JVM.</p>
+          <pre><code>com.example.platform
+├── loan
+│   ├── api
+│   ├── application
+│   ├── domain
+│   └── infrastructure
+├── customer
+├── payment
+└── shared</code></pre>
+          <p>Keep <code>shared</code> small. A global utility package easily becomes a hidden coupling layer where domain concepts lose ownership.</p>
+
+          <h2 id="request">Make the request path boring</h2>
+          <p>A synchronous request should validate input, authenticate the caller, execute one bounded use case, commit one clear transaction and return. Expensive fan-out, report generation and bulk I/O should not quietly occupy request threads.</p>
+          <figure><div class="diagram"><span>HTTP ADAPTER</span><b></b><span>USE CASE</span><b></b><span>DOMAIN + PORTS</span></div><figcaption>Infrastructure implements ports; business rules do not depend directly on controllers, JPA or Kafka.</figcaption></figure>
+          <p>Set timeouts at every remote boundary and make the overall request budget smaller than the caller's timeout. A connection pool, HTTP client and executor are finite queues; exposing their saturation is part of the API's correctness.</p>
+
+          <h2 id="transactions">Keep transaction boundaries visible</h2>
+          <p>Place transactions around application use cases, not every repository method. That makes the business atomicity boundary visible and avoids accidental partial updates.</p>
+          <p>Do not hold a database transaction open while calling an unpredictable remote service. Prefer a state transition such as <code>PENDING</code>, commit it, perform remote work with an idempotency key, and complete the transition in another bounded operation.</p>
+          <div class="callout"><strong>Useful question</strong><p>If the process stops after this database commit but before the next line, what durable state tells recovery what to do?</p></div>
+
+          <h2 id="async">Move the right work asynchronously</h2>
+          <p>Asynchronous processing is useful when the caller does not need the final result immediately, work can be retried, bursts should be buffered or several independent consumers need the same event. It is not a way to make failure disappear.</p>
+          <p>When a database change and an event must agree, write an outbox row in the same transaction as the domain state. A publisher then forwards the outbox record to Kafka or another broker. Consumers must still be idempotent because delivery can repeat.</p>
+          <ul>
+            <li>Give events stable IDs and versioned schemas.</li>
+            <li>Key events by the entity whose order matters.</li>
+            <li>Bound retries and separate transient from permanent failures.</li>
+            <li>Expose queue age and consumer lag, not only queue length.</li>
+          </ul>
+
+          <h2 id="data">Treat the database as a system, not an annotation</h2>
+          <p>JPA makes common persistence convenient, but the database still executes queries, acquires locks and maintains indexes. Review generated SQL for critical paths. Use pagination that remains stable, select only required columns for high-volume reads, batch writes deliberately and inspect query plans with production-like distributions.</p>
+          <p>Connection pools should be sized from database capacity and request behavior, not CPU count alone. A very large pool can increase contention and make overload slower rather than faster.</p>
+
+          <h2 id="observability">Instrument the business path</h2>
+          <p>Technical metrics answer “is the service healthy?” Business-flow metrics answer “is the platform completing work?” Both are required.</p>
+          <table>
+            <thead><tr><th>Signal</th><th>Examples</th><th>Question answered</th></tr></thead>
+            <tbody>
+              <tr><td>Traffic</td><td>request rate, event arrival rate</td><td>How much work is arriving?</td></tr>
+              <tr><td>Latency</td><td>p50, p95, p99 by operation</td><td>Who is waiting, and how long?</td></tr>
+              <tr><td>Saturation</td><td>pool usage, queue depth, lag</td><td>Which finite resource is full?</td></tr>
+              <tr><td>Correctness</td><td>rejected transitions, duplicate events</td><td>Is work producing valid outcomes?</td></tr>
+              <tr><td>Completion</td><td>loans processed, exports finished</td><td>Is the business flow progressing?</td></tr>
+            </tbody>
+          </table>
+          <p>Use correlation IDs across logs, traces and messages, but never place secrets or unnecessary personal data in observability fields.</p>
+
+          <h2 id="testing">Test boundaries, not implementation trivia</h2>
+          <ul>
+            <li><strong>Unit tests:</strong> domain rules and state transitions without Spring.</li>
+            <li><strong>Slice tests:</strong> controller contracts, serialization and repository queries.</li>
+            <li><strong>Integration tests:</strong> real PostgreSQL or Kafka behavior through containers.</li>
+            <li><strong>Contract tests:</strong> compatibility at external HTTP and event boundaries.</li>
+            <li><strong>Load tests:</strong> the complete critical path with realistic payloads and dependency limits.</li>
+          </ul>
+          <p>Failure tests are especially valuable: duplicate an event, delay a dependency, exhaust the connection pool, restart a consumer mid-batch and verify that recovery preserves the invariant.</p>
+
+          <h2 id="split">When to extract a service</h2>
+          <p>Extract a module when it needs independent scaling, release cadence, security isolation, technology constraints or ownership—and when the team can operate the new network boundary. Avoid extraction merely because a package has grown large.</p>
+          <p>A strong module makes a strong service candidate because its data ownership, interface and tests already exist. A weak module moved over HTTP becomes a distributed weak boundary.</p>
+          <p>For the performance side of this architecture, continue with <a href="/writing/designing-high-throughput-backend-systems/">designing high-throughput backend systems</a>.</p>
+          <div class="author-box"><img src="/assets/avatar.jpg" alt="Gourav Barnwal" width="68" height="68"><div><strong>Gourav Barnwal</strong><p>Senior Backend Engineer building Java, Spring Boot and event-driven platforms.</p></div></div>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#shape">Modular shape</a></li><li><a href="#request">Request path</a></li><li><a href="#transactions">Transactions</a></li><li><a href="#async">Async work</a></li><li><a href="#data">Database</a></li><li><a href="#observability">Observability</a></li><li><a href="#testing">Testing</a></li><li><a href="#split">Service extraction</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Now put the architecture under load.</h2><p>Throughput work starts with a measurable target and bounded queues.</p></div><a class="button" href="/writing/designing-high-throughput-backend-systems/">Throughput guide →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

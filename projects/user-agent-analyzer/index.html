@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>User-Agent Analyzer — Dependency-Free Java 17 Parser | Gourav Barnwal</title>
+    <meta name="description" content="Architecture and usage of Gourav Barnwal's dependency-free Java 17 user-agent parser for Chrome, Edge, Safari, Firefox and common operating systems.">
+    <link rel="canonical" href="https://gouravbyte.github.io/projects/user-agent-analyzer/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="User-Agent Analyzer — Dependency-Free Java 17 Parser">
+    <meta property="og:description" content="A pragmatic parser, a deliberately small API and the limits of user-agent detection.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/projects/user-agent-analyzer/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareSourceCode",
+            "name": "User-Agent Analyzer",
+            "description": "A lightweight, dependency-free Java 17 user-agent parser for common operating systems and browsers.",
+            "url": "https://gouravbyte.github.io/projects/user-agent-analyzer/",
+            "codeRepository": "https://github.com/gouravbyte/user-agent-analyzer",
+            "programmingLanguage": "Java",
+            "runtimePlatform": "Java 17",
+            "license": "https://github.com/gouravbyte/user-agent-analyzer/blob/main/LICENSE",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"}
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Projects", "item": "https://gouravbyte.github.io/projects/"},
+              {"@type": "ListItem", "position": 3, "name": "User-Agent Analyzer", "item": "https://gouravbyte.github.io/projects/user-agent-analyzer/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/" aria-current="page">Projects</a><a href="/writing/">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="https://github.com/gouravbyte/user-agent-analyzer">View source <span aria-hidden="true">↗</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/projects/">Projects</a><span>/</span><span>User-Agent Analyzer</span></nav>
+        <header class="page-hero">
+          <p class="section-kicker">JAVA LIBRARY / CLI</p>
+          <h1>User-Agent Analyzer</h1>
+          <p class="page-deck">A deliberately small Java 17 parser that identifies common browsers and operating systems without adding a runtime dependency.</p>
+          <div class="page-meta"><span>Java 17</span><span>JUnit 5</span><span>CLI + library</span><span>Open source</span></div>
+        </header>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="problem">The problem it solves</h2>
+          <p>Sometimes a service needs a coarse answer from a user-agent string: which operating-system family sent the request, and which browser family and version does it advertise? Pulling in a comprehensive parser is not always justified for a command-line utility, a learning project or a tightly scoped internal use case.</p>
+          <p>User-Agent Analyzer keeps that trade-off explicit. It is a single-purpose parser with no production dependencies, an immutable result object, a command-line entry point and unit tests for the patterns it promises to support.</p>
+          <figure><div class="diagram"><span>RAW USER AGENT</span><b></b><span>ORDERED PATTERNS</span><b></b><span>OS + BROWSER</span></div><figcaption>The parser performs deterministic pattern matching; it does not call a service or transmit the input.</figcaption></figure>
+
+          <h2 id="api">A compact API</h2>
+          <p>The library surface is intentionally narrow: call <code>UserAgentAnalyzer.parse</code> and read the normalized result. A null, empty or unrecognized string returns <code>Unknown</code> values instead of throwing during an analytics or logging path.</p>
+          <pre><code>UserAgentInfo info = UserAgentAnalyzer.parse(userAgent);
+
+System.out.println(info.getOsName());
+System.out.println(info.getOsVersion());
+System.out.println(info.getBrowserName());
+System.out.println(info.getBrowserVersion());</code></pre>
+          <p>The packaged JAR also exposes a CLI:</p>
+          <pre><code>java -jar target/user-agent-analyzer-0.1.0-SNAPSHOT.jar \
+  "Mozilla/5.0 (...) Chrome/124.0.0.0 Safari/537.36"</code></pre>
+
+          <h2 id="precedence">Why detection order matters</h2>
+          <p>Chromium-based browsers often include overlapping tokens. An Edge string can contain both <code>Chrome/...</code> and <code>Edg/...</code>; Opera and Samsung Internet have similar overlap. A parser that checks Chrome first will confidently return the wrong browser.</p>
+          <p>This implementation orders patterns from most specific to most general: Internet Explorer, Edge, Opera, Samsung Internet, Firefox, Chrome on iOS, Chrome and then Safari. OS matching similarly prioritizes Android and iOS before falling back to Linux or macOS markers.</p>
+          <div class="callout"><strong>Design invariant</strong><p>When signatures overlap, a more specific product token must win before a shared engine token is considered.</p></div>
+
+          <h2 id="coverage">Supported coverage</h2>
+          <table>
+            <thead><tr><th>Category</th><th>Recognized families</th><th>Normalization</th></tr></thead>
+            <tbody>
+              <tr><td>Browsers</td><td>Chrome, Edge, Safari, Firefox, Opera, Samsung Internet, Internet Explorer</td><td>Family plus advertised version</td></tr>
+              <tr><td>Desktop OS</td><td>Windows, macOS, Linux, ChromeOS</td><td>Windows NT mapped to common product versions</td></tr>
+              <tr><td>Mobile OS</td><td>Android, iOS, iPadOS</td><td>Underscore versions normalized to dots</td></tr>
+            </tbody>
+          </table>
+          <p>The JUnit suite covers Chrome and Edge on Windows, Safari on macOS and iOS, Chrome on Android and ChromeOS, Firefox on Linux, and Opera on Windows. Those tests document the supported contract more clearly than a long list of unverified claims.</p>
+
+          <h2 id="limits">Where this parser should not be used</h2>
+          <p>User-agent strings are inconsistent and increasingly reduced for privacy. This project is not a device-fingerprinting library, a bot-detection product or a substitute for User-Agent Client Hints. It does not maintain the enormous device and crawler signature catalogs expected from a mature parser.</p>
+          <ul>
+            <li>Use a maintained full parser when accuracy across long-tail devices and bots is business-critical.</li>
+            <li>Prefer feature detection over browser detection for frontend behavior.</li>
+            <li>Treat the parsed result as advisory metadata, never an authorization or security signal.</li>
+            <li>Expect Windows 10 and 11 to share the legacy <code>Windows NT 10.0</code> token.</li>
+          </ul>
+
+          <h2 id="run">Build and inspect it</h2>
+          <pre><code>git clone https://github.com/gouravbyte/user-agent-analyzer.git
+cd user-agent-analyzer
+mvn -q test
+mvn -q package</code></pre>
+          <p>Read the <a href="https://github.com/gouravbyte/user-agent-analyzer">source on GitHub</a>. The project is intentionally small enough to understand in one sitting and straightforward to extend with a new ordered pattern plus a regression test.</p>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#problem">Problem &amp; scope</a></li><li><a href="#api">Compact API</a></li><li><a href="#precedence">Pattern precedence</a></li><li><a href="#coverage">Supported coverage</a></li><li><a href="#limits">Limits</a></li><li><a href="#run">Build it</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Prefer event streams to request strings?</h2><p>Explore the Spring Boot and Kafka producer lab next.</p></div><a class="button" href="/projects/kafka-throughput-lab/">Kafka project →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

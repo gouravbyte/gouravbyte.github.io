@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kafka Consumer Groups Explained with a Real Example | Gourav Barnwal</title>
+    <meta name="description" content="Understand Kafka consumer groups through a six-partition example: assignment, rebalancing, offsets, delivery semantics, idempotency and lag.">
+    <link rel="canonical" href="https://gouravbyte.github.io/writing/kafka-consumer-groups-explained/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="Kafka Consumer Groups Explained with a Real Example">
+    <meta property="og:description" content="Trace six partitions across three consumers, then follow a rebalance and a failed message safely.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/writing/kafka-consumer-groups-explained/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TechArticle",
+            "headline": "Kafka Consumer Groups Explained with a Real Partition Model",
+            "description": "A practical guide to Kafka partition assignment, rebalancing, offsets, delivery semantics and idempotent processing.",
+            "url": "https://gouravbyte.github.io/writing/kafka-consumer-groups-explained/",
+            "datePublished": "2026-09-09",
+            "dateModified": "2026-09-09",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"},
+            "about": ["Apache Kafka", "Consumer groups", "Distributed systems"],
+            "proficiencyLevel": "Intermediate"
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://gouravbyte.github.io/writing/"},
+              {"@type": "ListItem", "position": 3, "name": "Kafka Consumer Groups", "item": "https://gouravbyte.github.io/writing/kafka-consumer-groups-explained/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/">Projects</a><a href="/writing/" aria-current="page">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="mailto:gourav.byte@gmail.com">Let's talk <span aria-hidden="true">→</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/writing/">Writing</a><span>/</span><span>Kafka consumer groups</span></nav>
+        <article>
+          <header class="page-hero">
+            <p class="section-kicker">APACHE KAFKA / 11 MIN READ</p>
+            <h1>Kafka consumer groups explained with a real partition model</h1>
+            <p class="page-deck">The useful mental model is not “Kafka distributes messages.” It is “a group temporarily owns partitions, and ownership controls ordering, parallelism and recovery.”</p>
+            <div class="page-meta"><span>By Gourav Barnwal</span><span>Published Sep 9, 2026</span><span>Intermediate</span></div>
+          </header>
+        </article>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="model">Start with ownership, not consumers</h2>
+          <p>A Kafka topic is split into partitions. Within one consumer group, each partition is assigned to at most one active consumer at a time. That rule creates the central trade-off: partitions preserve order, while partition count places an upper bound on useful parallelism for that group.</p>
+          <p>Imagine an <code>orders</code> topic with six partitions and a group called <code>risk-evaluator</code> containing three consumers:</p>
+          <table>
+            <thead><tr><th>Consumer</th><th>Assigned partitions</th><th>Records it can process</th></tr></thead>
+            <tbody><tr><td>C1</td><td>P0, P1</td><td>All records currently in P0 and P1</td></tr><tr><td>C2</td><td>P2, P3</td><td>All records currently in P2 and P3</td></tr><tr><td>C3</td><td>P4, P5</td><td>All records currently in P4 and P5</td></tr></tbody>
+          </table>
+          <p>Each partition remains ordered, but the topic as a whole does not have a global order. If all events for one order must stay ordered, use the order ID as the record key so the producer consistently selects the same partition.</p>
+
+          <h2 id="scaling">What happens when consumers scale</h2>
+          <p>Add C4 and the group coordinator redistributes six partitions across four consumers. Some consumers receive two partitions and some one. Add C7 and one consumer must remain idle because only six partitions exist.</p>
+          <blockquote><p>Consumer count can use available partition parallelism; it cannot create more of it.</p></blockquote>
+          <p>More partitions are not free. They increase broker metadata, open files, leader-election work and the number of units moved during assignment. Pick a count that accounts for expected throughput and future consumer concurrency, then validate it with the actual workload.</p>
+
+          <h2 id="rebalance">A rebalance is a temporary ownership change</h2>
+          <p>A group may rebalance when a consumer joins, leaves, exceeds its poll interval, changes subscription or when topic partitions change. During an eager rebalance, consumers revoke current assignments before new work proceeds. Cooperative assignment can reduce movement by transferring only the partitions that need a new owner.</p>
+          <p>For our six-partition example, suppose C2 stops sending heartbeats. After the session timeout, its P2 and P3 assignments become eligible for reassignment. The surviving consumers do not safely continue those partitions from memory; they resume from committed offsets.</p>
+          <div class="callout"><strong>Operational consequence</strong><p>Frequent rebalances are not background noise. They reduce useful processing time and can amplify duplicate work around the handoff boundary.</p></div>
+          <p>Common causes include slow record processing, long stop-the-world pauses, network interruption, rolling deployments and a <code>max.poll.interval.ms</code> that is too small for the largest processing batch.</p>
+
+          <h2 id="offsets">Offsets separate progress from processing</h2>
+          <p>An offset identifies a record's position within one partition. A consumer reads at a current position; the group stores a committed position used for recovery. Those are related but not identical.</p>
+          <ul>
+            <li><strong>Commit before the side effect:</strong> a crash can lose work because recovery starts after a record whose effect never completed.</li>
+            <li><strong>Commit after the side effect:</strong> a crash between the effect and commit can replay the record.</li>
+            <li><strong>Commit a batch:</strong> fewer commits improve throughput, but a failure can replay more records.</li>
+          </ul>
+          <p>For most business processing, at-least-once delivery plus an idempotent handler is a robust default. The consumer records the business result and a deduplication marker in one database transaction, then commits Kafka progress after that transaction succeeds.</p>
+
+          <h2 id="idempotency">Make replay safe</h2>
+          <p>A handler is idempotent when applying the same logical event again does not create an extra business effect. A practical pattern uses a stable event ID and a uniqueness constraint:</p>
+          <pre><code>begin;
+
+insert into processed_event(event_id)
+values (:event_id)
+on conflict do nothing;
+
+-- Apply the business change only when the insert succeeded.
+
+commit;</code></pre>
+          <p>The uniqueness constraint turns concurrent or repeated delivery into a database decision rather than a race in application memory. For external side effects such as payments or email, pass an idempotency key to the downstream system or separate intent recording from dispatch with an outbox.</p>
+
+          <h2 id="lag">Lag is useful, but incomplete</h2>
+          <p>Consumer lag is the distance between the latest partition offset and the group's committed offset. Rising lag tells you that arrival currently exceeds acknowledged processing. It does not explain why.</p>
+          <p>Monitor lag beside processing latency, poll duration, error rate, retry volume, rebalance count, assigned partition count and dependency latency. A group with low lag but frequent errors may be skipping work; a group with controlled lag may be absorbing a known traffic burst exactly as designed.</p>
+
+          <h2 id="checklist">A production checklist</h2>
+          <ol>
+            <li>Choose record keys from ordering requirements, not convenience.</li>
+            <li>Size partitions from measured throughput and expected group concurrency.</li>
+            <li>Keep polling responsive; move slow work to bounded workers when appropriate.</li>
+            <li>Disable automatic commits when the business completion boundary must be explicit.</li>
+            <li>Make handlers idempotent before relying on retries.</li>
+            <li>Bound retries and route exhausted records with enough context for safe replay.</li>
+            <li>Alert on sustained lag and rebalance churn, not a single noisy sample.</li>
+          </ol>
+          <p>To inspect a small producer that creates a three-partition topic and sends JSON records asynchronously, see the <a href="/projects/kafka-throughput-lab/">Kafka Throughput Lab</a>.</p>
+          <div class="author-box"><img src="/assets/avatar.jpg" alt="Gourav Barnwal" width="68" height="68"><div><strong>Gourav Barnwal</strong><p>Senior Backend Engineer writing about Java, Kafka, PostgreSQL and distributed systems.</p></div></div>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#model">Partition ownership</a></li><li><a href="#scaling">Scaling consumers</a></li><li><a href="#rebalance">Rebalancing</a></li><li><a href="#offsets">Offsets</a></li><li><a href="#idempotency">Idempotency</a></li><li><a href="#lag">Lag</a></li><li><a href="#checklist">Checklist</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Next: connect database changes to Kafka.</h2><p>CDC introduces a second progress model—the database log position.</p></div><a class="button" href="/writing/postgresql-cdc-debezium-kafka/">Read the CDC guide →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>

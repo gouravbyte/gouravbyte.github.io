@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kafka Throughput Lab — Spring Boot Producer Architecture | Gourav Barnwal</title>
+    <meta name="description" content="A code-level tour of Gourav Barnwal's Java 21 and Spring Boot Kafka producer lab: JSON events, partitions, async sends and benchmark design.">
+    <link rel="canonical" href="https://gouravbyte.github.io/projects/kafka-throughput-lab/">
+    <link rel="icon" href="/assets/avatar.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="stylesheet" href="/assets/content.css">
+    <meta property="og:title" content="Kafka Throughput Lab — Spring Boot Producer Architecture">
+    <meta property="og:description" content="From HTTP request to partitioned Kafka event, with the benchmark gaps made explicit.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://gouravbyte.github.io/projects/kafka-throughput-lab/">
+    <meta property="og:image" content="https://gouravbyte.github.io/assets/og.png">
+    <meta property="og:image:width" content="1734">
+    <meta property="og:image:height" content="907">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareSourceCode",
+            "name": "Kafka Throughput Lab",
+            "description": "A Java 21 and Spring Boot project for producing JSON events to a three-partition Kafka topic.",
+            "url": "https://gouravbyte.github.io/projects/kafka-throughput-lab/",
+            "codeRepository": "https://github.com/gouravbyte/kafka-producer-example",
+            "programmingLanguage": "Java",
+            "runtimePlatform": "Java 21 and Spring Boot 3.3.3",
+            "author": {"@type": "Person", "name": "Gourav Barnwal", "url": "https://gouravbyte.github.io/about/"}
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://gouravbyte.github.io/"},
+              {"@type": "ListItem", "position": 2, "name": "Projects", "item": "https://gouravbyte.github.io/projects/"},
+              {"@type": "ListItem", "position": 3, "name": "Kafka Throughput Lab", "item": "https://gouravbyte.github.io/projects/kafka-throughput-lab/"}
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="content-page" id="top">
+    <header class="site-header content-header">
+      <a class="brand" href="/" aria-label="Gourav Barnwal — home"><span class="brand-mark">GB</span><span class="brand-name">Gourav Barnwal</span></a>
+      <nav aria-label="Primary navigation"><a href="/projects/" aria-current="page">Projects</a><a href="/writing/">Writing</a><a href="/#experience">Experience</a><a href="/about/">About</a></nav>
+      <a class="header-contact" href="https://github.com/gouravbyte/kafka-producer-example">View source <span aria-hidden="true">↗</span></a>
+    </header>
+    <main>
+      <div class="page-shell">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/projects/">Projects</a><span>/</span><span>Kafka Throughput Lab</span></nav>
+        <header class="page-hero">
+          <p class="section-kicker">JAVA / SPRING BOOT / KAFKA</p>
+          <h1>Kafka Throughput Lab</h1>
+          <p class="page-deck">A compact producer project for exploring JSON serialization, asynchronous delivery and the relationship between topic partitions and consumer parallelism.</p>
+          <div class="page-meta"><span>Java 21</span><span>Spring Boot 3.3.3</span><span>Spring Kafka</span><span>3 partitions</span></div>
+        </header>
+      </div>
+      <div class="page-shell content-layout">
+        <article class="article-body">
+          <h2 id="purpose">What the repository demonstrates</h2>
+          <p>The project wires a Spring Boot HTTP API to a local Kafka broker. It creates a topic named <code>softenggourav-demo</code> with three partitions, serializes <code>Customer</code> objects as JSON, and publishes through Spring Kafka's <code>KafkaTemplate</code>.</p>
+          <figure><div class="diagram"><span>HTTP API</span><b></b><span>KAFKA TEMPLATE</span><b></b><span>3-PARTITION TOPIC</span></div><figcaption>The checked-in path is intentionally small: controller, publisher, producer configuration and Kafka.</figcaption></figure>
+          <p>The send API returns a <code>CompletableFuture&lt;SendResult&gt;</code>. A completion callback records the assigned offset or the delivery error, keeping the request thread out of the broker round trip.</p>
+
+          <h2 id="configuration">Producer and topic configuration</h2>
+          <p>The configuration uses <code>StringSerializer</code> for keys and Spring Kafka's <code>JsonSerializer</code> for values. The bootstrap server is local, and the topic is declared as a Spring bean:</p>
+          <pre><code>@Bean
+public NewTopic createTopic() {
+    return new NewTopic("softenggourav-demo", 3, (short) 1);
+}
+
+@Bean
+public KafkaTemplate&lt;String, Object&gt; kafkaTemplate() {
+    return new KafkaTemplate&lt;&gt;(producerFactory());
+}</code></pre>
+          <p>Three partitions create room for three active consumers in one group. That does not automatically produce three-way balance: the record key and partitioner decide where records land, and a null key typically spreads events according to producer behavior rather than a business ordering rule.</p>
+
+          <h2 id="honest-benchmark">A lab, not a published benchmark</h2>
+          <p>The repository describes a one-million-record experiment, but the current checkout is best understood as the producer foundation for that experiment—not a reproducible benchmark report. It does not yet publish hardware details, broker settings, consumer code, latency percentiles or result files.</p>
+          <blockquote><p>A throughput number without workload shape, durability settings and measurement boundaries is not portable evidence.</p></blockquote>
+          <p>That distinction matters. Kafka throughput changes dramatically with record size, compression, batching, acknowledgements, replication, storage, network latency and consumer work. A credible lab should make all of those variables visible.</p>
+
+          <h2 id="experiment">How I would run the million-record experiment</h2>
+          <ol>
+            <li><strong>Define the payload.</strong> Fix the serialized byte size and key distribution so runs are comparable.</li>
+            <li><strong>Warm the system.</strong> Run a short warm-up before collecting JVM and broker metrics.</li>
+            <li><strong>Bound the producer.</strong> Generate a known record count while recording accepted, acknowledged and failed sends separately.</li>
+            <li><strong>Capture percentiles.</strong> Report p50, p95 and p99 end-to-end latency alongside records and bytes per second.</li>
+            <li><strong>Vary one parameter at a time.</strong> Compare <code>batch.size</code>, <code>linger.ms</code>, compression, <code>acks</code> and in-flight requests without mixing changes.</li>
+            <li><strong>Observe the consumers.</strong> Record lag, rebalance duration, processing time and partition assignment for one, two, three and four consumers.</li>
+          </ol>
+
+          <h2 id="production">What production would add</h2>
+          <table>
+            <thead><tr><th>Concern</th><th>Lab state</th><th>Production direction</th></tr></thead>
+            <tbody>
+              <tr><td>Durability</td><td>Broker defaults</td><td>Choose acknowledgements, replication and min-in-sync replicas explicitly</td></tr>
+              <tr><td>Failure handling</td><td>Completion callback logs</td><td>Bound retries, surface metrics and preserve failed payload context safely</td></tr>
+              <tr><td>Ordering</td><td>No domain key</td><td>Key by the entity whose events require order</td></tr>
+              <tr><td>Schema evolution</td><td>Ad hoc JSON</td><td>Version contracts and enforce compatibility</td></tr>
+              <tr><td>Observability</td><td>Console output</td><td>Measure send latency, error rate, broker health and consumer lag</td></tr>
+            </tbody>
+          </table>
+          <p>For the consumer side, read <a href="/writing/kafka-consumer-groups-explained/">Kafka consumer groups explained with a real partition model</a>. It walks through assignment, rebalancing, commits and idempotent processing.</p>
+
+          <h2 id="source">Explore the source</h2>
+          <p>The repository is intentionally approachable: <a href="https://github.com/gouravbyte/kafka-producer-example">view it on GitHub</a>, run Kafka locally on port 9092, then start the Spring Boot service on port 9191. The best next contribution is a repeatable benchmark harness with consumer implementations and machine-readable result output.</p>
+        </article>
+        <aside class="toc" aria-label="On this page"><span>On this page</span><ol><li><a href="#purpose">What it demonstrates</a></li><li><a href="#configuration">Configuration</a></li><li><a href="#honest-benchmark">Benchmark scope</a></li><li><a href="#experiment">Experiment design</a></li><li><a href="#production">Production gaps</a></li><li><a href="#source">Source</a></li></ol></aside>
+      </div>
+      <section class="content-cta"><div class="page-shell-wide content-cta-grid"><div><h2>Understand the other side of the topic.</h2><p>Consumer groups determine how partitions become parallel work.</p></div><a class="button" href="/writing/kafka-consumer-groups-explained/">Read the guide →</a></div></section>
+    </main>
+    <footer class="compact-footer"><div class="shell footer-bottom"><p>© 2026 Gourav Barnwal</p><div><a href="/projects/">Projects</a><a href="/writing/">Writing</a><a href="https://github.com/gouravbyte" rel="me">GitHub</a><a href="https://www.linkedin.com/in/gouravbyte/" rel="me">LinkedIn</a></div><a href="#top">Back to top ↑</a></div></footer>
+  </body>
+</html>
